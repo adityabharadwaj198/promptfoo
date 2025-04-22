@@ -131,7 +131,7 @@ function countChunks(matches: MatchPair[]): number {
   return chunks;
 }
 
-async function singlecalculateMeteorScore(
+async function calculateSingleMeteorScore(
   reference: string[],
   candidate: string[],
   alpha: number = 0.9,
@@ -163,20 +163,21 @@ async function singlecalculateMeteorScore(
 
   let fragFrac = 0; 
   let fmean = 0;
-  try {
-    const precision = matchesCount / translationLength;
-    const recall = matchesCount / referenceLength;
-    fmean = (precision * recall) / (alpha * precision + (1 - alpha) * recall);
-    
-    const chunkCount = countChunks(allMatches);
-    fragFrac = chunkCount / matchesCount;
-  } catch (e) {
-    if (e instanceof Error && e.message.includes('division by zero')) {
-      return 0.0;
-    }
-    throw e;
+  if (translationLength === 0 || referenceLength === 0 || matchesCount === 0) {
+    return 0.0;
+  }
+
+  const precision = matchesCount / translationLength;
+  const recall = matchesCount / referenceLength;
+  const denominator = alpha * precision + (1 - alpha) * recall;
+  
+  if (denominator === 0) {
+    return 0.0;
   }
   
+  fmean = (precision * recall) / denominator;
+  const chunkCount = countChunks(allMatches);
+  fragFrac = chunkCount / matchesCount;
   const penalty = gamma * Math.pow(fragFrac, beta);
 
   return (1 - penalty) * fmean;
@@ -195,7 +196,8 @@ async function calculateMeteorScore(
 
   const scores = await Promise.all(
     references.map(reference => 
-      singlecalculateMeteorScore(
+      calculateSingleMeteorScore
+    (
         reference.split(/\s+/).map(word => word.replace(/\.+$/, '')),
         candidate.split(/\s+/).map(word => word.replace(/\.+$/, '')),
         alpha,
